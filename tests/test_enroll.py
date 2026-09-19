@@ -8,21 +8,22 @@ import provision as core
 
 def application(body=None):
     return {"number": 1, "user": {"login": "Student-123", "type": "User"},
-            "body": body or "### 课程\n\n2073 · 专业阶段 - rCore-Tutorial\n"}
+            "body": body or "### 课程\n\nrcore · 专业阶段 - rCore-Tutorial\n"}
 
 
 class ProvisionServer:
     """Deterministic API fault injection; real GitHub runs are recorded separately."""
     def __init__(self):
-        self.final = "LearningOS/2026a-rcore-Student-123"
-        self.preparing = "LearningOS/preparing-2026a-rcore-Student-123"
-        self.template = "LearningOS/2026a-rcore"
+        self.final = "LearningOS/2026s-rcore-Student-123"
+        self.preparing = "LearningOS/preparing-2026s-rcore-Student-123"
+        self.template = "LearningOS/2026s-oscamp-professional-2026s-rcore-rCore-Tutorial-Code"
         self.created = self.published = False
         self.lose_create = self.lose_rename = self.lose_variable = False
         self.variable = None
         self.visibility = "all"
         self.calls = []
         self.check_position = None
+        self.has_pages = False
 
     def check(self, repository):
         self.check_position = len(self.calls)
@@ -32,12 +33,16 @@ class ProvisionServer:
         self.calls.append((method, path, data))
         if path == "users/Student-123":
             return {"type": "User", "login": "Student-123"}
-        if path == "repos/LearningOS/2026a-rcore":
+        if path == "repos/LearningOS/2026s-oscamp-professional-2026s-rcore-rCore-Tutorial-Code":
             return {"is_template": True, "private": False}
         if "/actions/secrets/" in path:
             return {"visibility": self.visibility}
         if "/branches?" in path:
-            return [{"name": branch} for branch in enroll.COURSES["2073"]["branches"]]
+            return [{"name": branch} for branch in enroll.COURSES["rcore"]["branches"]]
+        if path.endswith("/permission"):
+            return {"permission": "write"}
+        if path.endswith("/git/ref/heads/gh-pages"):
+            return {"ref": "refs/heads/gh-pages"} if self.has_pages else None
         if path.endswith("/generate"):
             self.created = True
             if self.lose_create:
@@ -107,13 +112,13 @@ class EnrollmentTests(unittest.TestCase):
                     self.assertEqual(config, course)
 
     def test_student_identity_only_comes_from_issue_author(self):
-        issue = application("### 课程\n\n2073 · 专业阶段 - rCore-Tutorial\n"
+        issue = application("### 课程\n\nrcore · 专业阶段 - rCore-Tutorial\n"
                             "\n### GitHub 登录名\n\nMaintainer\n$(touch unwanted)\n")
         self.assertEqual(enroll.parse_request(issue)[0], "Student-123")
 
     def test_unknown_or_ambiguous_course_rejected(self):
         for body in ["### 课程\n\n9999 · Other", "hello",
-                     "### 课程\n\n2073 · 专业阶段 - rCore-Tutorial; echo unsafe",
+                     "### 课程\n\nrcore · 专业阶段 - rCore-Tutorial; echo unsafe",
                      application()["body"] * 2]:
             with self.assertRaises(ValueError):
                 enroll.parse_request(application(body))
@@ -132,7 +137,7 @@ class EnrollmentTests(unittest.TestCase):
         server = ProvisionServer()
         with patch.object(core, "api", side_effect=server), patch.object(
                 core, "check_configuration", side_effect=server.check):
-            url, check_url = core.provision("Student-123", "2073", enroll.COURSES["2073"])
+            url, check_url = core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertEqual(url, "https://github.com/" + server.final)
         self.assertEqual(check_url, url + "/actions/runs/123")
         writes = [(method, path, data) for method, path, data in server.calls if method != "GET"]
@@ -150,7 +155,7 @@ class EnrollmentTests(unittest.TestCase):
         with patch.object(core, "api", side_effect=server), patch.object(
                 core, "check_configuration", side_effect=core.ConfigurationError("Failed", "https://github.com/check")):
             with self.assertRaises(core.ConfigurationError):
-                core.provision("Student-123", "2073", enroll.COURSES["2073"])
+                core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertFalse(server.published)
         self.assertFalse(any("/collaborators/" in path for _, path, _ in server.calls))
 
@@ -159,7 +164,7 @@ class EnrollmentTests(unittest.TestCase):
         server.visibility = "private"
         with patch.object(core, "api", side_effect=server):
             with self.assertRaisesRegex(ValueError, "public repositories"):
-                core.provision("Student-123", "2073", enroll.COURSES["2073"])
+                core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertFalse(server.created)
         self.assertTrue(all(method == "GET" for method, _, _ in server.calls))
 
@@ -168,12 +173,12 @@ class EnrollmentTests(unittest.TestCase):
         server.visibility = "selected"
         with patch.object(core, "api", side_effect=server), patch.object(
                 core, "check_configuration", side_effect=server.check):
-            core.provision("Student-123", "2073", enroll.COURSES["2073"])
+            core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         grants = [(index, method, path) for index, (method, path, _) in enumerate(server.calls)
                   if "/actions/secrets/" in path and method == "PUT"]
-        self.assertEqual(len(grants), 1)
+        self.assertEqual(len(grants), 2)
         index, _, path = grants[0]
-        self.assertEqual(path, "orgs/LearningOS/actions/secrets/OSCAMP_2026A_RCORE_TOKEN/repositories/123")
+        self.assertEqual(path, "orgs/LearningOS/actions/secrets/RCORE_2026_SPRING_TOKEN/repositories/123")
         self.assertLess(index, server.check_position)
         self.assertTrue(server.published)
 
@@ -186,7 +191,7 @@ class EnrollmentTests(unittest.TestCase):
             return server(method, path, data, **options)
         with patch.object(core, "api", side_effect=denied), patch.object(core, "check_configuration") as check:
             with self.assertRaisesRegex(core.GitHubError, "Secret grant denied"):
-                core.provision("Student-123", "2073", enroll.COURSES["2073"])
+                core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         check.assert_not_called()
         self.assertFalse(server.published)
         self.assertFalse(any("/collaborators/" in path for _, path, _ in server.calls))
@@ -196,7 +201,7 @@ class EnrollmentTests(unittest.TestCase):
         server.lose_create = server.lose_rename = True
         with patch.object(core, "api", side_effect=server), patch.object(
                 core, "check_configuration", side_effect=server.check):
-            url, _ = core.provision("Student-123", "2073", enroll.COURSES["2073"])
+            url, _ = core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertEqual(url, "https://github.com/" + server.final)
         self.assertTrue(server.published)
         self.assertEqual(sum(path.endswith("/generate") for _, path, _ in server.calls), 1)
@@ -207,8 +212,42 @@ class EnrollmentTests(unittest.TestCase):
         server.created = server.published = True
         with patch.object(core, "api", side_effect=server), patch.object(
                 core, "check_configuration", side_effect=server.check):
-            core.provision("Student-123", "2073", enroll.COURSES["2073"])
+            core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertFalse(any(method == "PATCH" or path.endswith("/generate") for method, path, _ in server.calls))
+
+    def test_existing_classroom_fork_is_reused_without_changing_code_or_scores(self):
+        server = ProvisionServer()
+        server.created = server.published = server.has_pages = True
+        def legacy(method, path, data=None, **options):
+            result = server(method, path, data, **options)
+            if path == "repos/" + server.final and result:
+                result["parent"] = result.pop("template_repository")
+            return result
+        with patch.object(core, "api", side_effect=legacy), patch.object(core, "check_configuration") as check:
+            url, check_url = core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
+        self.assertEqual(url, "https://github.com/" + server.final)
+        self.assertIsNone(check_url)
+        check.assert_not_called()
+        self.assertTrue(all(method == "GET" for method, _, _ in server.calls))
+
+    def test_source_pages_are_removed_only_from_new_preparation_repository(self):
+        server = ProvisionServer()
+        server.has_pages = True
+        with patch.object(core, "api", side_effect=server), patch.object(core, "check_configuration", side_effect=server.check):
+            core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
+        deletes = [(index, path) for index, (method, path, _) in enumerate(server.calls) if method == "DELETE"]
+        self.assertEqual(len(deletes), 1)
+        self.assertEqual(deletes[0][1], "repos/" + server.preparing + "/git/refs/heads/gh-pages")
+        self.assertLess(deletes[0][0], server.check_position)
+
+    def test_existing_repository_reply_does_not_claim_a_configuration_run(self):
+        with patch.dict(os.environ, {"GH_TOKEN": "test-only"}), patch.object(
+                enroll, "provision", return_value=("https://github.com/old", None)), patch.object(enroll, "api") as api:
+            enroll.process_application(application(), "https://github.com/run")
+        body = api.call_args_list[0].args[2]["body"]
+        self.assertIn("原有的作业仓库", body)
+        self.assertNotIn("配置检查已通过", body)
+        self.assertNotIn("None", body)
 
     def test_conflicting_final_name_is_never_overwritten(self):
         with patch.object(core, "api", return_value={"id": 999}) as api:
@@ -221,7 +260,7 @@ class EnrollmentTests(unittest.TestCase):
         server.lose_variable = True
         with patch.object(core, "api", side_effect=server), patch.object(core, "check_configuration") as check:
             with self.assertRaisesRegex(ValueError, "another student"):
-                core.provision("Student-123", "2073", enroll.COURSES["2073"])
+                core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         check.assert_not_called()
         self.assertFalse(server.published)
 
@@ -293,7 +332,7 @@ class EnrollmentTests(unittest.TestCase):
         server.template = "someone/else"
         with patch.object(core, "api", side_effect=server):
             with self.assertRaisesRegex(ValueError, "left untouched"):
-                core.provision("Student-123", "2073", enroll.COURSES["2073"])
+                core.provision("Student-123", "rcore", enroll.COURSES["rcore"])
         self.assertTrue(all(method == "GET" for method, _, _ in server.calls))
 
 

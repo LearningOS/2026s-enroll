@@ -11,7 +11,7 @@ from provision import ConfigurationError, provision
 
 ROOT = Path(__file__).resolve().parent
 ORGANIZATION = "LearningOS"
-HUB = ORGANIZATION + "/2026a-enroll"
+HUB = ORGANIZATION + "/2026s-enroll"
 COURSES = json.loads((ROOT / "courses.json").read_text())
 
 
@@ -66,23 +66,29 @@ def process_application(issue, run_url):
         if not os.environ.get("GH_TOKEN"):
             raise ValueError("领取入口尚未配置 ENROLL_GITHUB_TOKEN，请维护者完成一次性建仓授权。")
         url, check_url = provision(login, course_id, course)
+        verification = (
+            f"[本次配置检查已通过]({check_url})，可以开始实验。"
+            if check_url else "已找到你原有的作业仓库，请继续在该仓库完成实验。"
+        )
         body = (
             f"@{login}，你的 **{course['title']}** 作业仓库已配置。\n\n"
             f"1. [接受仓库邀请]({url}/invitations)（已有访问权限时可直接进入仓库）。\n"
             f"2. [打开作业仓库]({url})，按 README 克隆、完成实验并 push。\n"
             f"3. 在 [Actions]({url}/actions) 查看评测和成绩上传结果。\n\n"
-            "请先加入 [OpenCamp 秋冬季训练营](https://opencamp.cn/os2edu/camp/2026fall)，"
+            "请先加入 [OpenCamp 春夏季训练营](https://opencamp.cn/os2edu/camp/2026spring)，"
             f"并绑定 GitHub 账号 **{login}**。\n\n"
-            f"[本次配置检查已通过]({check_url})，确认身份映射和课程凭证已配置。"
-            "配置检查不会提交成绩，实际成绩由之后的实验 push 触发评测上传。"
+            + verification
         )
         api("POST", f"repos/{HUB}/issues/{number}/comments", {"body": body}, issue=True)
         api("PATCH", f"repos/{HUB}/issues/{number}", {"state": "closed"}, issue=True)
     except (ValueError, RuntimeError, OSError, KeyError) as error:
         print(redact(str(error)), flush=True)
         message = f"本次领取未完成，请维护者查看[运行日志]({run_url})后重试该申请。"
-        if url is not None:
+        if url is not None and check_url is not None:
             message = (f"[作业仓库]({url})已准备完成，[配置检查]({check_url})已通过。"
+                       f"回复或关闭申请时发生错误，请维护者查看[运行日志]({run_url})后重试。")
+        elif url is not None:
+            message = (f"[原作业仓库]({url})已找到。"
                        f"回复或关闭申请时发生错误，请维护者查看[运行日志]({run_url})后重试。")
         if isinstance(error, ConfigurationError):
             message += f"\n\n[本次配置检查]({error.url})尚未通过，因此保留申请供排查和重试。"

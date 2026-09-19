@@ -1,30 +1,58 @@
 {
-  "2084": {
+  "rustling": {
     "title": "导学阶段-Rust 语言基础",
-    "template": "2026a-rustling",
-    "secret": "OSCAMP_2026A_RUSTLINGS_TOKEN",
-    "branches": ["main"],
-    "stage": 2
+    "prefix": "2026s-rustling",
+    "secret": "RUSTLINGS_2026_SPRING_TOKEN",
+    "course_secret": "RUSTLINGS_2026_SPRING_COURSE_ID",
+    "branches": [
+      "main"
+    ],
+    "grading_workflow": "rust.yml",
+    "stage": 1,
+    "template": "rustling-classroom-2026s-rustling-2026s-rustling-classroom-template-1"
   },
-  "2074": {
+  "base": {
     "title": "基础阶段 - Rust 进阶 & OS 入门",
-    "template": "2026a-oscamp-base",
-    "secret": "OSCAMP_2026A_BASE_TOKEN",
-    "branches": ["main"],
-    "stage": 4
+    "prefix": "2026s-oscamp-base",
+    "secret": "OSCAMP_TOKEN",
+    "course_secret": "OSCAMP_COURSE_ID",
+    "branches": [
+      "main"
+    ],
+    "grading_workflow": "scoring.yml",
+    "stage": 3,
+    "template": "2026s-oscamp-base-2026s-oscamp-base-exercise-oscamp-base-experiment"
   },
-  "2073": {
+  "rcore": {
     "title": "专业阶段 - rCore-Tutorial",
-    "template": "2026a-rcore",
-    "secret": "OSCAMP_2026A_RCORE_TOKEN",
-    "branches": ["main", "ch1", "ch2", "ch3", "ch4", "ch5", "ch6", "ch7", "ch8"],
-    "stage": 5
+    "prefix": "2026s-rcore",
+    "secret": "RCORE_2026_SPRING_TOKEN",
+    "course_secret": "RCORE_2026_SPRING_COURSE_ID",
+    "branches": [
+      "main",
+      "ch1",
+      "ch2",
+      "ch3",
+      "ch4",
+      "ch5",
+      "ch6",
+      "ch7",
+      "ch8"
+    ],
+    "grading_workflow": "build.yml",
+    "stage": 4,
+    "template": "2026s-oscamp-professional-2026s-rcore-rCore-Tutorial-Code"
   },
-  "2078": {
+  "arceos": {
     "title": "项目先导阶段 - 组件化操作系统",
-    "template": "2026a-arceos",
-    "secret": "OSCAMP_2026A_ARCEOS_TOKEN",
-    "branches": ["main"],
-    "stage": 6
+    "prefix": "2026s-arceos",
+    "secret": "ARCEOS_2026_SPRING_TOKEN",
+    "course_secret": "ARCEOS_2026_SPRING_COURSE_ID",
+    "branches": [
+      "main"
+    ],
+    "grading_workflow": "test.yml",
+    "stage": 5,
+    "template": "2026s-oscamp-professional-2026s-arceos-arceos-classroom-2026s-arceos-oscamp"
   }
 }

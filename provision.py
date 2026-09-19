@@ -44,7 +44,7 @@ def check_configuration(repository):
 def validate_source(repo, template):
     if repo.get("archived") or repo.get("disabled"):
         raise ValueError("Repository is archived or disabled; left untouched.")
-    source_name = (repo.get("template_repository") or {}).get("full_name", "")
+    source_name = (repo.get("template_repository") or repo.get("parent") or {}).get("full_name", "")
     if source_name.lower() != template.lower() or repo.get("private"):
         raise ValueError(repo.get("full_name", "Repository") +
                          " already exists with a different source; left untouched.")
@@ -147,20 +147,33 @@ def provision(login, course_id, course):
     branches = api("GET", "repos/" + template + "/branches?per_page=100")
     if not set(course["branches"]).issubset({item["name"] for item in branches}):
         raise ValueError("Course template is missing required branches; no repository was created.")
-    secret = api("GET", f"orgs/{ORGANIZATION}/actions/secrets/{course['secret']}")
-    if secret.get("visibility") not in {"all", "selected"}:
-        raise ValueError("The course organization secret must allow public repositories.")
+    credentials = {}
+    for name in [course["secret"], course["course_secret"]]:
+        credentials[name] = api("GET", f"orgs/{ORGANIZATION}/actions/secrets/{name}")
+        if credentials[name].get("visibility") not in {"all", "selected"}:
+            raise ValueError("The course organization secret must allow public repositories.")
 
-    final_repository = template + "-" + login
+    final_repository = ORGANIZATION + "/" + course["prefix"] + "-" + login
     repo = api("GET", "repos/" + final_repository, missing_ok=True)
     if repo is None:
-        repository = ORGANIZATION + "/preparing-" + course["template"] + "-" + login
+        repository = ORGANIZATION + "/preparing-" + course["prefix"] + "-" + login
         repo = prepare_repository(repository, template, course, login, course_id)
     else:
         validate_source(repo, template)
-        repository = final_repository
-        print("Checking existing course repository; student code is preserved: " + repository)
+        # Classroom repositories are forks; keep their coursework, branches and CI.
+        permission = api("GET", f"repos/{final_repository}/collaborators/{login}/permission")
+        if permission.get("permission") not in {"write", "maintain", "admin"}:
+            api("PUT", f"repos/{final_repository}/collaborators/{login}", {"permission": "push"})
+        print("Existing course repository preserved: " + final_repository)
+        return "https://github.com/" + final_repository, None
     endpoint = "repos/" + repository
+
+    # The source's gh-pages branch contains published results/docs, not exercises.
+    # Remove it only from this unissued preparation repository, never an old assignment.
+    if "gh-pages" not in course["branches"]:
+        pages = api("GET", endpoint + "/git/ref/heads/gh-pages", missing_ok=True)
+        if pages is not None:
+            api("DELETE", endpoint + "/git/refs/heads/gh-pages", retry=False)
 
     variable_path = endpoint + "/actions/variables/STUDENT_GITHUB"
     variable = api("GET", variable_path, missing_ok=True)
@@ -181,12 +194,13 @@ def provision(login, course_id, course):
         raise ValueError("Repository belongs to another student; identity was not overwritten.")
 
     # Grant only this course credential before checking the student repository.
-    if secret["visibility"] == "selected":
-        api("PUT", f"orgs/{ORGANIZATION}/actions/secrets/{course['secret']}/repositories/{repo['id']}")
+    for name, secret in credentials.items():
+        if secret["visibility"] == "selected":
+            api("PUT", f"orgs/{ORGANIZATION}/actions/secrets/{name}/repositories/{repo['id']}")
 
     api("PUT", endpoint + "/actions/workflows/check-config.yml/enable")
     check_url = check_configuration(repository)
-    api("PUT", endpoint + "/actions/workflows/build.yml/enable")
+    api("PUT", endpoint + f"/actions/workflows/{course['grading_workflow']}/enable")
     api("PUT", endpoint + "/collaborators/" + login, {"permission": "push"})
     if repository != final_repository:
         publish_repository(repository, final_repository, repo["id"])
